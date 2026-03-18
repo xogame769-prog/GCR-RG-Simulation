@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>VIP Guard Simulation</title>
+  <style>
+    body {
+      background: #111;
+      color: white;
+      text-align: center;
+      font-family: Arial;
+    }
+    canvas {
+      background: #222;
+      margin-top: 10px;
+    }
+    button {
+      margin: 5px;
+      padding: 10px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>VIP Guard Simulation</h2>
+
+<button onclick="setSignal(1)">Signal 1 (Diamond)</button>
+<button onclick="setSignal(2)">Signal 2 (Columns)</button>
+<button onclick="setSignal(3)">Signal 3 (Escort)</button>
+<button onclick="togglePause()">Pause / Resume</button>
+<button onclick="resetScenario()">Reset Scenario</button>
+
+<canvas id="game" width="600" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let signalState = 4; // start in STS
+let previousSignal = 4;
+let paused = false;
+
+// VIP
+let vip = { x: 300, y: 300, moveTimer: 0, vx: 0, vy: 0 };
+
+// Guards
+let guards = [];
+
+// GCR
+let gcrs = [];
+
+// --- INIT ---
+function initEntities() {
+
+  // Guards
+  guards = [];
+  for (let i = 0; i < 8; i++) {
+    guards.push({
+      x: 200 + i * 25,
+      y: 350,
+      targetX: 0,
+      targetY: 0
+    });
+  }
+
+  // GCR
+  gcrs = [];
+  for (let i = 0; i < 4; i++) {
+    gcrs.push({
+      x: 200 + i * 50,
+      y: 450
+    });
+  }
+}
+
+initEntities();
+
+// --- FORMATIONS ---
+
+const diamondOffsets = [
+  {x: 0, y: -50},
+  {x: -50, y: 0},
+  {x: 50, y: 0},
+  {x: 0, y: 50},
+  {x: -80, y: -80},
+  {x: 80, y: -80},
+  {x: -80, y: 80},
+  {x: 80, y: 80}
+];
+
+const columnOffsets = [
+  {x: -180, y: -80},
+  {x: -180, y: -30},
+  {x: -180, y: 30},
+  {x: -180, y: 80},
+
+  {x: 180, y: -80},
+  {x: 180, y: -30},
+  {x: 180, y: 30},
+  {x: 180, y: 80}
+];
+
+const stsOffsets = [
+  {x: -140, y: 80},
+  {x: -100, y: 80},
+  {x: -60, y: 80},
+  {x: -20, y: 80},
+  {x: 20, y: 80},
+  {x: 60, y: 80},
+  {x: 100, y: 80},
+  {x: 140, y: 80}
+];
+
+// Pairs
+function getPairs() {
+  return [
+    [guards[0], guards[1]],
+    [guards[2], guards[3]],
+    [guards[4], guards[5]],
+    [guards[6], guards[7]],
+  ];
+}
+
+// --- CONTROLS ---
+function setSignal(n) {
+
+  if (previousSignal === 3 && n !== 3) {
+    resetGCR();
+  }
+
+  previousSignal = n;
+  signalState = n;
+}
+
+function togglePause() {
+  paused = !paused;
+}
+
+function resetScenario() {
+  vip.x = 300;
+  vip.y = 300;
+  vip.vx = 0;
+  vip.vy = 0;
+  vip.moveTimer = 0;
+
+  initEntities();
+
+  signalState = 4;
+  previousSignal = 4;
+}
+
+// --- GCR RESET ---
+function resetGCR() {
+  gcrs.forEach((p, i) => {
+    p.x = 200 + i * 50;
+    p.y = 450;
+  });
+}
+
+// --- VIP MOVEMENT ---
+function moveVIP() {
+  vip.moveTimer--;
+
+  if (vip.moveTimer <= 0) {
+    vip.moveTimer = Math.random() * 200 + 100;
+
+    vip.vx = Math.random() < 0.5 ? 0 : (Math.random() - 0.5) * 1;
+    vip.vy = Math.random() < 0.5 ? 0 : (Math.random() - 0.5) * 1;
+  }
+
+  vip.x += vip.vx;
+  vip.y += vip.vy;
+}
+
+// --- LOGIC ---
+function updateGuards() {
+
+  if (signalState === 1) {
+    guards.forEach((g, i) => {
+      g.targetX = vip.x + diamondOffsets[i].x;
+      g.targetY = vip.y + diamondOffsets[i].y;
+    });
+  }
+
+  if (signalState === 2) {
+    guards.forEach((g, i) => {
+      g.targetX = vip.x + columnOffsets[i].x;
+      g.targetY = vip.y + columnOffsets[i].y;
+    });
+  }
+
+  if (signalState === 3) {
+    let pairs = getPairs();
+
+    pairs.forEach((pair, i) => {
+      let target = gcrs[i];
+
+      pair.forEach(g => {
+        g.targetX = target.x;
+        g.targetY = target.y;
+
+        let dx = target.x - vip.x;
+        let dy = target.y - vip.y;
+
+        target.x += dx * 0.01;
+        target.y += dy * 0.01;
+      });
+    });
+
+    let cleared = gcrs.every(p => {
+      let dx = p.x - vip.x;
+      let dy = p.y - vip.y;
+      return Math.sqrt(dx*dx + dy*dy) > 220;
+    });
+
+    if (cleared) signalState = 2;
+  }
+
+  if (signalState === 4) {
+    guards.forEach((g, i) => {
+      g.targetX = vip.x + stsOffsets[i].x;
+      g.targetY = vip.y + stsOffsets[i].y;
+    });
+  }
+
+  // Smooth movement (slow)
+  guards.forEach(g => {
+    g.x += (g.targetX - g.x) * 0.04;
+    g.y += (g.targetY - g.y) * 0.04;
+  });
+}
+
+// --- DRAW ---
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // VIP
+  ctx.fillStyle = "yellow";
+  ctx.fillRect(vip.x - 10, vip.y - 10, 20, 20);
+
+  // Guards
+  ctx.fillStyle = "red";
+  guards.forEach(g => {
+    ctx.fillRect(g.x - 8, g.y - 8, 16, 16);
+  });
+
+  // GCR
+  ctx.fillStyle = "grey";
+  gcrs.forEach(p => {
+    ctx.fillRect(p.x - 8, p.y - 8, 16, 16);
+  });
+
+  ctx.fillStyle = "white";
+  ctx.fillText("Signal: " + signalState, 10, 20);
+  ctx.fillText(paused ? "PAUSED" : "RUNNING", 10, 40);
+}
+
+// --- LOOP ---
+function loop() {
+  if (!paused) {
+    moveVIP();
+    updateGuards();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+
+</script>
+</body>
+</html>
